@@ -1,13 +1,13 @@
 --------
 --  Stargate Config (Milky Way)
---  version 20.2
+--  version 20.4
 --------
 --  scripting by Legend26
 --  modeling by andy6a6, Flames911
 -- (Stargates up to version 19.5 authored solely by Ganondude)
 --------
 --  Released: 		December 29, 2018
---  Last Updated: 	February 03, 2019
+--  Last Updated: 	November 10, 2019
 --------
 --  This script defines a stargate's configuration.
 --------
@@ -158,6 +158,7 @@ network =  model:FindFirstChild "Network";
 origin =   model:FindFirstChild "Origin";
 priority = model:FindFirstChild "Priority";
 ["9SymbolCode"] = model:FindFirstChild "9SymbolCode";
+networkAccessPoint = model:FindFirstChild "NetworkAccessPoint";
 
 --------
 } -- end of config table

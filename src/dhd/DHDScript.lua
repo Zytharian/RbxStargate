@@ -1,13 +1,13 @@
 --------
 --	DHD Script
---	version 20.3
+--	version 20.4
 --------
 --  scripting by Legend26
 --  modeling by andy6a6, Flames911
 -- (Stargates up to version 19.5 authored solely by Ganondude)
 --------
 --  Released: 		December 29, 2018
---  Last Updated: 	March 17, 2019
+--  Last Updated: 	November 10, 2019
 --------
 
 
@@ -54,6 +54,7 @@ DHD Functions
 	stopPulse()
 	updateGuide()
 	doGui(Player player)
+	canDial()
 	onMouseClick(Player player, BasePart button)
 	onStateChanged(Stargate sg, sg.GateState state)
 	playSound(Int id, BasePart parent, bool isActivator)
@@ -322,11 +323,20 @@ function proximityHelper()
 	end
 end
 
+function canDial()
+	local stargate = this.ConnectedTo
+
+	return (
+		stargate.State == stargate.GateState.IDLE or
+	    stargate.State == stargate.GateState.DIALING
+	)
+end
+
 function onMouseClick(player,button)
 	local stargate = this.ConnectedTo
 
 	if (not stargate) or (not player) or (not player.Character) or (not player.Character.PrimaryPart)
-		or (isDialing) or (stargate:IsActive())
+		or (isDialing) or (not canDial())
 	then
 		return
 	end
@@ -365,13 +375,16 @@ function onMouseClick(player,button)
 		playSound(config.activated, button, true)
 		wait(0.5)
 
-		if (config.activatorInputsOrigin) then
-			stargate.DialMode.Value = this.DialMode.Value
-			stargate:Dial(symbol)
-			updateGuide()
-		end
+		-- Ensure we can still dial the gate after the wait()
+		if (canDial()) then
+			if (config.activatorInputsOrigin) then
+				stargate.DialMode.Value = this.DialMode.Value
+				stargate:Dial(symbol)
+				updateGuide()
+			end
 
-		stargate:Connect()
+			stargate:Connect()
+		end
 		isDialing = false
 
 	elseif (config.enableDialHints) and (stargate.State == stargate.GateState.IDLE) and (not guidingAddress) then
@@ -391,7 +404,7 @@ function onStateChanged(sg, state)
 	if (state == sg.GateState.DEACTIVATING or state == sg.GateState.INCOMING) then
 		deactivate()
 
-	elseif (state == sg.GateState.DIALING or state == sg.GateState.CONNECTING) then
+	elseif (state == sg.GateState.DIALING or state == sg.GateState.PRE_CONNECTING or state == sg.GateState.CONNECTING) then
 		local dialed = sg:GetDialedSymbols()
 		clicked = {}
 
@@ -400,7 +413,7 @@ function onStateChanged(sg, state)
 			lightButton(dialed[i], true)
 		end
 
-		if (state == sg.GateState.CONNECTING) then
+		if (state == sg.GateState.PRE_CONNECTING or state == sg.GateState.CONNECTING) then
 			lightButton(nil, true)
 
 			local originPartOfAddr = false

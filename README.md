@@ -1,4 +1,4 @@
-# Roblox Stargates v20.3
+# Roblox Stargates v20.4
 
 This repository hosts the code, resources, and compiled models for the latest
 Milky Way and Pegasus gates. They are based on (and share some code with)

@@ -544,6 +544,7 @@ function module:animDialPegasus(symbol, chevron, mode)
 		local a = chevSymbols[chevron-1]
 		local b = chevSymbols[chevron]
 		local c = (math.abs(a-b) > 18) and b or b + (36*priv.dialDir)
+		c = (a > c and priv.dialDir > 0) and a + c or c
 
 		local copy = self:placeFakeSymbol(symbol, a)
 		prev = a

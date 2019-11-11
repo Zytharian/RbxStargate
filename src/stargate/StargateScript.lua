@@ -1,6 +1,6 @@
 --------
 --  Stargate Script
---  version 20.3
+--  version 20.4
 --------
 --  scripting by Legend26
 --  modeling by andy6a6, Flames911
@@ -8,7 +8,7 @@
 -- (Stargates up to version 19.5 authored solely by Ganondude)
 --------
 --  Released: 		December 29, 2018
---  Last Updated: 	March 17, 2019
+--  Last Updated: 	November 10, 2019
 --------
 --  This script drives the stargate's operations.
 --------
@@ -50,6 +50,7 @@ public data
 	Network					-- type: IntValue				-- the object containing the Stargate's network value
 	Origin					-- type: IntValue				-- the object containing the Stargate's origin value
 	9SymbolCode				-- type: StringValue			-- the object containing the Stargate's 9 symbol code value
+N	NetworkAccessPoint		-- type: BooleanValue			-- the object determining whether the Stargate is a network access point
 
 N	State					-- type: GateState Enum			-- the Stargate's current FSM state
 B	Active					-- type: BoolValue				-- the object containing the Stargate's active value
@@ -148,7 +149,8 @@ local cache = {
 
 local GateState = {
 	IDLE=1, INCOMING=2, DIALING=3, CONNECTING=4, CONNECTION_FAILED=5, ACTIVATING_INCOMING=6,
-	ACTIVATING_OUTGOING=7, ACTIVE_INCOMING=8, ACTIVE_OUTGOING=9, DEACTIVATING=10, DISABLED=11
+	ACTIVATING_OUTGOING=7, ACTIVE_INCOMING=8, ACTIVE_OUTGOING=9, DEACTIVATING=10, DISABLED=11,
+	PRE_CONNECTING=12,
 }
 
 local stateHandlers = {}
@@ -168,6 +170,8 @@ this = {
 	Address = nil,
 	Network = nil,
 	Origin = nil,
+	["9SymbolCode"] = nil,
+	NetworkAccessPoint = nil,
 
 	State = nil,
 	Active = nil,
@@ -177,7 +181,7 @@ this = {
 	LongDistance = nil,
 
 	VERSION_MAJOR = 20,
-	VERSION_MINOR = 0,
+	VERSION_MINOR = 4,
 
 	GateState = nil,
 
@@ -226,7 +230,7 @@ Status Functions
 ]]--
 
 function isActive()
-	return (this.State ~= GateState.IDLE and this.State ~= GateState.DIALING)
+	return (this.State ~= GateState.IDLE) and (this.State ~= GateState.DIALING) and (this.State ~= GateState.PRE_CONNECTING)
 end
 
 function isBusy()
@@ -249,7 +253,8 @@ function isBlocked()
 end
 
 function keepDialing()
-	return (this.State == GateState.DIALING or this.State == GateState.CONNECTING) and (#dialQueue > 0)
+	return (this.State == GateState.DIALING or this.State == GateState.PRE_CONNECTING or this.State == GateState.CONNECTING)
+		and (#dialQueue > 0)
 end
 
 function atLeastVer20(sg)
@@ -458,7 +463,7 @@ function dial(param)
 end
 
 function incoming(sg)
-	if (this.State ~= GateState.IDLE) and (this.State ~= GateState.DIALING) then
+	if (this.State ~= GateState.IDLE) and (this.State ~= GateState.DIALING) and (this.State ~= GateState.PRE_CONNECTING) then
 		error("Cannot recieve incoming wormhole")
 	end
 
@@ -485,7 +490,7 @@ function connect()
 	if (this.State ~= GateState.DIALING) then
 		error("Stargate must be in DIALING state. State=" .. this.State)
 	end
-	setState(GateState.CONNECTING)
+	setState(GateState.PRE_CONNECTING)
 
 	local connected
 	for _,v in pairs(findDialable()) do
@@ -522,7 +527,15 @@ function connect()
 			break
 		end
 
+		if (this.State ~= GateState.PRE_CONNECTING) then
+			return
+		end
+
 		wait()
+	end
+
+	if (this.State ~= GateState.PRE_CONNECTING) then
+		return
 	end
 
 	if (not connected) or (connected.Model ~= this.Model and connected:IsActive()) then
@@ -542,6 +555,8 @@ function connect()
 end
 
 function connectTo(sg)
+	setState(GateState.CONNECTING)
+
 	this.ConnectedTo = sg
 
 	if (sg.Model ~= this.Model) then -- gates use self connections when dialing for an inter-place teleport
@@ -1053,22 +1068,28 @@ function findDialable()
 			-- Forgive blank network values for backwards compatibility
 			local network = sg.Network.Value == "" and this.Network.Value or tonumber(sg.Network.Value)
 
-			if (address) and (network) then
-				if (network ~= this.Network.Value) then
-					table.insert(address, network)
+			if (address and network) then
+				local dialAddress
+
+				if (network == this.Network.Value) then -- 7 symbol
+					dialAddress = address
+					table.insert(dialAddress, this.Origin.Value)
+				elseif (sg.NetworkAccessPoint.Value) then -- 9 or 8 symbol
+					local code = stringToArray(sg["9SymbolCode"].Value)
+					if (code) and (#code == 8) then
+						table.insert(code, this.Origin.Value)
+						dialAddress = code
+					else
+						dialAddress = address
+						table.insert(dialAddress, this.Network.Value)
+						table.insert(dialAddress, this.Origin.Value)
+					end
 				end
-				table.insert(address, this.Origin.Value)
 
 				local dist = (sg:GetCenter().p - getCenter().p).magnitude
-				if (dist <= config.maxDistance) then
-					table.insert(dialable,{Stargate=sg, DialAddress=address, PlaceId=0, Name=tostring(sg)})
+				if (dialAddress) and (dist <= config.maxDistance) then
+					table.insert(dialable, {Stargate=sg, DialAddress=dialAddress, PlaceId=0, Name=tostring(sg)})
 				end
-			end
-
-			local code = stringToArray(sg["9SymbolCode"].Value)
-			if (code) and (#code == 8) then
-				table.insert(code, this.Origin.Value)
-				table.insert(dialable, {Stargate=sg, DialAddress=code, PlaceId=0, Name=tostring(sg)})
 			end
 		end
 	end
@@ -1249,6 +1270,7 @@ if (model) and (model:IsA("Model")) then
 	this.Priority = config.priority
 
 	this["9SymbolCode"] = config["9SymbolCode"]
+	this.NetworkAccessPoint = config.networkAccessPoint
 
 	-- Randomly choose an origin. The DHD's activator will automatically input this for the user.
 	if (this.Origin.Value < 1 or this.Origin.Value > config.numSymbols) then
