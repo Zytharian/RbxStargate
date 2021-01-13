@@ -357,8 +357,6 @@ function module:animDeactivation()
 
 		wait(config.horizonDeactivateAnimStartOffset)
 
-		local animTime = config.horizonDeactivateFadeOutTime + config.horizonDeactivateFadeInTime
-
 		self:animFakeHorizon(config.animIdInit[1], config.horizonDeactivateFadeInTime)
 
 		stopHorizonAnim = true
@@ -725,9 +723,16 @@ function module:calculateDialTime(topSymbol, dialQueue, chevronsLocked, mode)
 
 			local a = chevSymbols[currChev-1]
 			local b = chevSymbols[currChev]
-			local c = (math.abs(a-b) > 18) and b or b + (36*priv.dialDir)
+			local c = math.abs(a - b)
+			local d = math.min(c, math.abs(36 - c))
 
-			totalTime = totalTime + (timePerSymStep * math.abs(a - c))
+			if tempDD > 0 then
+				d = d + 36
+			else
+				d = 36 - d
+			end
+
+			totalTime = totalTime + (timePerSymStep * d) + lockTime
 
 			tempDD = tempDD * -1
 			currChev = currChev + 1

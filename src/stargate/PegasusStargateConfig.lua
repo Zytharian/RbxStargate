@@ -1,17 +1,9 @@
 --------
 --  Stargate Config (Pegasus)
---  version 20.4
---------
---  scripting by Legend26
---  modeling by andy6a6, Flames911
--- (Stargates up to version 19.5 authored solely by Ganondude)
---------
---  Released: 		December 29, 2018
---  Last Updated: 	November 10, 2019
---------
 --  This script defines a stargate's configuration.
+--  Legend26, Ganondude
 --------
-local model = script.Parent
+local model = script.Parent.Parent
 local config = {
 --------
 
@@ -159,6 +151,8 @@ origin =   model:FindFirstChild "Origin";
 priority = model:FindFirstChild "Priority";
 ["9SymbolCode"] = model:FindFirstChild "9SymbolCode";
 networkAccessPoint = model:FindFirstChild "NetworkAccessPoint";
+addressHidden = model:FindFirstChild "AddressHidden";
+maxDialLength = model:FindFirstChild "MaxDialLength";
 
 --------
 } -- end of config table

@@ -1,6 +1,6 @@
 --------
 --  Stargate Script
---  version 20.4
+--  version 20.5
 --------
 --  scripting by Legend26
 --  modeling by andy6a6, Flames911
@@ -8,7 +8,7 @@
 -- (Stargates up to version 19.5 authored solely by Ganondude)
 --------
 --  Released: 		December 29, 2018
---  Last Updated: 	November 10, 2019
+--  Last Updated: 	January 12, 2021
 --------
 --  This script drives the stargate's operations.
 --------
@@ -27,8 +27,10 @@ N	_G.Stargates
 		- Assets
 			- Sounds
 			- Decals
+			- Versions
 			- AddSounds(array of Int)
 			- AddDecals(array of Int)
+			- AddVersion(string,number,number)
 
 B	_G.all_Stargates						-- Same as _G.Stargates.All
 
@@ -51,6 +53,8 @@ public data
 	Origin					-- type: IntValue				-- the object containing the Stargate's origin value
 	9SymbolCode				-- type: StringValue			-- the object containing the Stargate's 9 symbol code value
 N	NetworkAccessPoint		-- type: BooleanValue			-- the object determining whether the Stargate is a network access point
+N	AddressHidden			-- type: BooleanValue			-- the object determining whether the Stargate's address should be hidden
+N	MaxDialLength			-- type: IntValue				-- the object determining how many symbols the Stargate can dial including Point of Origin
 
 N	State					-- type: GateState Enum			-- the Stargate's current FSM state
 B	Active					-- type: BoolValue				-- the object containing the Stargate's active value
@@ -78,6 +82,7 @@ B	IsBusy()				-- returns: boolean				-- true if the Stargate is performing eithe
 
 	GetCenter()				-- returns: CFrame				-- CFrame at the center of the Stargate, facing forward
 	GetRadius()				-- returns: number				-- the approximate radius of the Stargate (measured from chevrons)
+B	GetVelocity()			-- returns: Vector3, Vector3	-- returns 0,0,0 and 0,0,0; for v19.5 backward compatability only
 
 	Incoming(Stargate)		-- returns: nil					-- used by another Stargate to dial in
 	Ripple(Vector3)			-- returns: nil					-- plays a Ripple animation at the position passed in (position in object coordinates)
@@ -85,7 +90,7 @@ B	IsBusy()				-- returns: boolean				-- true if the Stargate is performing eithe
 	FindByProximity(Vector3, number)
 							-- returns: Stargate or nil		-- finds the closest Stargate to [Vector3 position] within [number range] (returns nil if no Stargate found)
 
-N	FindDialable()			-- returns: array of			-- finds all stargates this gate can dial within the configuration's minLength and maxLength settings
+N	FindDialable(bool, bool)-- returns: array of			-- finds all stargates this gate can dial within the configuration's minLength and maxLength settings
 							{Stargate, DialAddress, PlaceId=0, Name}
 N	Dial(table OR number)	-- returns: nil					-- dials the stargate using the symbol(s) passed to the method
 N	GetDialedSymbols()		-- returns: array of number		-- returns a list of symbols (in order) that have been or are currently being dialed
@@ -95,7 +100,7 @@ N	Activate()				-- returns: nil					-- activates the wormhole; used by gates dia
 N	Deactivate()			-- returns: nil					-- deactivates the gate
 N	SetDisabled(bool,bool)	-- returns: nil					-- call only when gate is in IDLE or DISABLED states, can be used to stop a gate from being dialed or dialing out
 
-N	InvalidateCache()		-- returns: nil					-- deletes any data currently cached internally (use this if the gate is moved)
+N	InvalidateCache()		-- returns: nil					-- deletes any data currently cached internally (use when gate is moved or when the available addresses change)
 
 --------
 Events work slightly differently from Roblox events.
@@ -119,7 +124,7 @@ N	OnStateChanged(h)		-- args: Stargate,NewState		-- fired when the Stargate's FS
 local API
 local ALL 						-- API.All
 
-local config = require(script.Parent.StargateConfig)
+local config = require(script.StargateConfig)
 local anim = require(script.StargateAnims)
 
 local animShared = {
@@ -155,6 +160,12 @@ local GateState = {
 
 local stateHandlers = {}
 
+-- Used by long-running Stargate API functions to prevent halting in the middle of something
+-- when the calling script is destroyed. Especially a problem with tools when the player dies.
+local thisBindableFunction = Instance.new("BindableFunction")
+thisBindableFunction.OnInvoke = function(callback) return callback() end
+local executeInThisContext = function(callback) thisBindableFunction:Invoke(callback) end
+
 -- Functions in 'this' must not use "self" and should instead use the "this" variable.
 -- This is due to how the "this" metatable is set up.
 -- 'this' should not be exposed by any code below. Instead, 'exported' should be used.
@@ -172,6 +183,8 @@ this = {
 	Origin = nil,
 	["9SymbolCode"] = nil,
 	NetworkAccessPoint = nil,
+	AddressHidden = nil,
+	MaxDialLength = nil,
 
 	State = nil,
 	Active = nil,
@@ -181,7 +194,7 @@ this = {
 	LongDistance = nil,
 
 	VERSION_MAJOR = 20,
-	VERSION_MINOR = 4,
+	VERSION_MINOR = 5,
 
 	GateState = nil,
 
@@ -193,24 +206,25 @@ this = {
 
 	GetCenter = function() return getCenter() end,
 	GetRadius = function() return getRadius() end,
+	GetVelocity = function() return Vector3.new(0,0,0), Vector3.new(0,0,0) end,
 
-	Incoming = function(_,sg) incoming(sg) end,
-	Ripple = function(_,pos) anim:animRipple(pos) end,
+	Incoming = function(_, sg) executeInThisContext(function() incoming(sg) end) end,
+	Ripple = function(_, pos) executeInThisContext(function() anim:animRipple(pos) end) end,
 
-	FindByProximity = function(self,pos,rng) return findByProximity(pos,rng) end,
+	FindByProximity = function(_, pos, rng) return findByProximity(pos,rng) end,
 
-	FindDialable = function(_,maxAddressLength) return findDialable(maxAddressLength) end,
-	Dial = function(_,symbol) dial(symbol) end,
+	FindDialable = function(_, ignoreMaxDialLength, ignoreHidden) return findDialable(ignoreMaxDialLength, ignoreHidden) end,
+	Dial = function(_, symbol) executeInThisContext(function() dial(symbol) end) end,
 	GetDialedSymbols = function() local x={} for k,v in pairs(currentDialed) do x[k]=v end return x end,
-	Connect = function() connect() end,
-	Activate = function() activate() end,
-	Deactivate = function() deactivate() end,
-	SetDisabled = function(_, locked, tryDeactivate) setDisabled(locked, tryDeactivate) end,
+	Connect = function() executeInThisContext(function() connect() end) end,
+	Activate = function() executeInThisContext(function() activate() end) end,
+	Deactivate = function() executeInThisContext(function() deactivate() end) end,
+	SetDisabled = function(_, locked, tryDeactivate) executeInThisContext(function() setDisabled(locked, tryDeactivate) end) end,
 
 	InvalidateCache = function() for k,v in pairs(cache) do cache[k] = nil end end,
 
 	-- Events
-	OnStateChanged = function(_,h) return onStateChanged(h) end,
+	OnStateChanged = function(_, h) return onStateChanged(h) end,
 }
 
 --------
@@ -429,8 +443,13 @@ function dial(param)
 		error("Stargate must be in IDLE or DIALING states. State=" .. this.State)
 	end
 
-	if (#currentDialed + #symbolsToDial > config.maxLength) then
-		error("Cannot dial more than " .. config.maxLength .. " symbols")
+	local totalDialSymbolCount = #currentDialed + #symbolsToDial
+	if (totalDialSymbolCount > config.maxLength) then
+		error("Cannot dial more than " .. config.maxLength .. " symbols (hard limit)")
+	end
+
+	if (totalDialSymbolCount > this.MaxDialLength.Value) then
+		error("Cannot dial more than " .. this.MaxDialLength.Value .. " symbols (soft limit)")
 	end
 
 	for _,symbol in pairs(symbolsToDial) do
@@ -493,7 +512,7 @@ function connect()
 	setState(GateState.PRE_CONNECTING)
 
 	local connected
-	for _,v in pairs(findDialable()) do
+	for _,v in pairs(findDialable(false, true)) do
 		if (arrayEqual(currentDialed, v.DialAddress)) then
 
 			print("Stargate: found address match")
@@ -560,7 +579,7 @@ function connectTo(sg)
 	this.ConnectedTo = sg
 
 	if (sg.Model ~= this.Model) then -- gates use self connections when dialing for an inter-place teleport
-		sg:Incoming(this)
+		sg:Incoming(exported)
 
 		-- This is for backwards compatibility
 		-- sg:Incoming() completes the incoming dial animation before returning on v20
@@ -1031,6 +1050,7 @@ Search Functions
 
 	findByProximity(Vector3 pos, number range)
 	findDialable()
+	findAllPossibleDialable()
 ]]--
 
 function findByProximity(pos,range)
@@ -1055,7 +1075,30 @@ function findByProximity(pos,range)
 	return temp,dist
 end
 
-function findDialable()
+function findDialable(ignoreMaxDialLength, ignoreHidden)
+	local dialable = findAllPossibleDialable()
+	local valid = {}
+
+	for _,v in pairs(dialable) do
+		local okToAdd = true
+
+		if (not ignoreMaxDialLength) and (#v.DialAddress > this.MaxDialLength.Value) then
+			okToAdd = false
+		end
+
+		if (not ignoreHidden) and (v.Stargate and v.Stargate.AddressHidden and v.Stargate.AddressHidden.Value) then
+			okToAdd = false
+		end
+
+		if (okToAdd) then
+			table.insert(valid, v)
+		end
+	end
+
+	return valid
+end
+
+function findAllPossibleDialable()
 	if (cache.dialable) then return copyDialableTable(cache.dialable) end
 
 	local dialable = {}
@@ -1161,7 +1204,6 @@ function findDialable()
 	return copyDialableTable(dialable)
 end
 
-
 --------
 -- Main
 --------
@@ -1198,8 +1240,13 @@ if (not API.Assets) then
 	API.Assets = {
 		Sounds = {};
 		Decals = {};
+		Versions = {};
 		AddSounds = function(_, sounds) addTo(API.Assets.Sounds, sounds) end;
 		AddDecals = function(_, decals) addTo(API.Assets.Decals, decals) end;
+		AddVersion =
+			function(_, model, major, minor)
+				addTo(API.Assets.Versions, model .. " v" .. major .. "." .. minor)
+			end;
 	}
 
 	local rs = game:GetService("ReplicatedStorage")
@@ -1217,6 +1264,7 @@ if (not API.Assets) then
 		return {
 			Decals = API.Assets.Decals;
 			Sounds = API.Assets.Sounds;
+			Versions = API.Assets.Versions;
 		}
 	end
 	remote.Parent = rs
@@ -1244,23 +1292,19 @@ API.Assets:AddSounds(config.dialFail)
 API.Assets:AddSounds(config.chevronLock)
 API.Assets:AddSounds(config.incomingLock)
 API.Assets:AddSounds(config.ringRoll)
+
+if (API.Assets.AddVersion) then
+	API.Assets:AddVersion("Stargate", this.VERSION_MAJOR, this.VERSION_MINOR)
+end
 --------
 
 local model = script.Parent
-
--- script can unanchor them again later if necessary; all parts should be anchored initially
-for k,v in pairs(model:GetDescendants()) do
-	if (v:IsA("BasePart")) then
-		v.Anchored = true
-	end
-end
-
 if (model) and (model:IsA("Model")) then
 	this.Model = model
 
 	-- Set to the back top chevron, since no animation moves it
 	this.MainPart = config:getChevron(config.topChevron)
-	assert(this.MainPart,"Stargate main part not found." .. script:GetFullName())
+	assert(this.MainPart, "Stargate main part not found." .. script:GetFullName())
 
 	this.Address = config.address
 	this.Network = config.network
@@ -1271,6 +1315,8 @@ if (model) and (model:IsA("Model")) then
 
 	this["9SymbolCode"] = config["9SymbolCode"]
 	this.NetworkAccessPoint = config.networkAccessPoint
+	this.AddressHidden = config.addressHidden
+	this.MaxDialLength = config.maxDialLength
 
 	-- Randomly choose an origin. The DHD's activator will automatically input this for the user.
 	if (this.Origin.Value < 1 or this.Origin.Value > config.numSymbols) then
@@ -1282,7 +1328,7 @@ if (model) and (model:IsA("Model")) then
 		for i = 1, 6 do
 			local symbol
 			repeat
-				symbol = math.random(1,36)
+				symbol = math.random(1, 36)
 			until (not this.Address.Value:find(tostring(symbol), 1, false))
 			this.Address.Value = this.Address.Value .. tostring(symbol)
 			if (i ~= 6) then

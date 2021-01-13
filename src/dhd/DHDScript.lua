@@ -1,13 +1,13 @@
 --------
 --	DHD Script
---	version 20.4
+--	version 20.5
 --------
 --  scripting by Legend26
 --  modeling by andy6a6, Flames911
 -- (Stargates up to version 19.5 authored solely by Ganondude)
 --------
 --  Released: 		December 29, 2018
---  Last Updated: 	November 10, 2019
+--  Last Updated: 	January 12, 2021
 --------
 
 
@@ -20,7 +20,7 @@
 
 local ALL
 
-local config = require(script.Parent.DHDConfig)
+local config = require(script.DHDConfig)
 
 local isDialing = false
 local clicked = {}
@@ -39,7 +39,9 @@ local this = {
 	ConnectedTo = nil,
 
 	DialMode = nil,
-	MaxLength = config.maxLength,
+
+	VERSION_MAJOR = 20,
+	VERSION_MINOR = 5,
 }
 
 --------
@@ -177,13 +179,17 @@ function pulse(symbol)
 		end
 	end)()
 
-	stopGuidePulse = function() go = false end
+	stopGuidePulse = function()
+		go = false
+		lightButton(symbol, false)
+		stopGuidePulse = nil
+		return symbol
+	end
 end
 
 function stopPulse()
 	if (stopGuidePulse) then
 		stopGuidePulse()
-		stopGuidePulse = nil
 	end
 end
 
@@ -246,7 +252,7 @@ function doGui(player)
 
 	local finalDialable = {}
 	for _,v in pairs(stargate:FindDialable()) do
-		if (#v.DialAddress <= this.MaxLength) and (v.PlaceId == 0 or config.displayInterplace) then
+		if (v.PlaceId == 0 or config.displayInterplace) then
 			table.insert(finalDialable, {v.DialAddress, v.Name})
 		end
 	end
@@ -349,9 +355,10 @@ function onMouseClick(player,button)
 	local s = "DHD: clicked; symbol=" .. symbol .. "; isActivator=" .. tostring(isActivator)
 
 	if (not isActivator) then
+		local maxDialLength = stargate.MaxDialLength.Value
 		if (clicked[symbol]) then
 			print(s .. "; unable to input")
-		elseif (#stargate.GetDialedSymbols() < (config.activatorInputsOrigin and this.MaxLength-1 or this.MaxLength)) then
+		elseif (#stargate:GetDialedSymbols() < (config.activatorInputsOrigin and maxDialLength-1 or maxDialLength)) then
 			print(s)
 
 			stopPulse()
@@ -377,7 +384,7 @@ function onMouseClick(player,button)
 
 		-- Ensure we can still dial the gate after the wait()
 		if (canDial()) then
-			if (config.activatorInputsOrigin) then
+			if (config.activatorInputsOrigin) and (#stargate:GetDialedSymbols() < stargate.MaxDialLength.Value) then
 				stargate.DialMode.Value = this.DialMode.Value
 				stargate:Dial(symbol)
 				updateGuide()
@@ -405,6 +412,8 @@ function onStateChanged(sg, state)
 		deactivate()
 
 	elseif (state == sg.GateState.DIALING or state == sg.GateState.PRE_CONNECTING or state == sg.GateState.CONNECTING) then
+		stopPulse()
+
 		local dialed = sg:GetDialedSymbols()
 		clicked = {}
 
@@ -500,8 +509,14 @@ if (model) and (model:IsA("Model")) then
 	end
 
 	-- add our assets to the stargate preload list
-	_G.Stargates.Assets:AddSounds(config.activated)
-	_G.Stargates.Assets:AddSounds(config.dialPressed)
+	local assets = _G.Stargates.Assets
+
+	assets:AddSounds(config.activated)
+	assets:AddSounds(config.dialPressed)
+
+	if (assets.AddVersion) then
+		assets:AddVersion("DHD", this.VERSION_MAJOR, this.VERSION_MINOR)
+	end
 
 	wait(2) -- give all the stargates 2s to register themselves
 	if (ALL) and (#ALL > 0) then

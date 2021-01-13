@@ -106,9 +106,11 @@ local debugActions = {
 
 	switchDialModes = (function()
 		for k,v in pairs(_G.all_Stargates) do
+			local dm = v.DialMode
+			dm.Value = dm.Value > 1 and dm.Value - 1 or 3
+
 			if (v.DHD) then
-				local dm = v.DHD.DialMode
-				dm.Value = dm.Value > 1 and dm.Value - 1 or 3
+				v.DHD.DialMode.Value = dm.Value
 			end
 		end
 	end)

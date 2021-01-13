@@ -1,24 +1,15 @@
 --------
 --	DHD Config (Milky Way)
---	version 20.2
---------
---  scripting by Legend26
---  modeling by andy6a6
--- (Stargates up to version 19.5 authored solely by Ganondude)
---------
---  Released: 		December 29, 2018
---  Last Updated: 	February 16, 2019
---------
 --  This script defines a DHD's configuration.
+--  Legend26, Ganondude
 --------
-local model = script.Parent
+local model = script.Parent.Parent
 local config = {
 --------
 
 --------
 -- Basic Settings:
 --------
-maxLength = 7;					-- The maximum address length accepted as input by the DHD _including_ the activator origin input. (Can be modified by other plugins)
 activatorInputsOrigin = true;	-- If true, pressing the activator dials the gate origin and activates the gate
 
 maxDistance = 100;				-- The maximum distance allowed between the DHD and its connected Stargate. (If 0 then no limit.)
