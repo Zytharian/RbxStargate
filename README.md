@@ -7,6 +7,7 @@ Ganondude's gates up to version 19.5.
 ## Model Availability
 * Pegasus: https://www.roblox.com/library/2691944515/Stargate-Pegasus
 * Milky Way: https://www.roblox.com/library/2691942038/Stargate-Milky-Way
+* Gate Remote: https://www.roblox.com/library/6248304095/Stargate-Remote
 
 ## Contributors
 
