@@ -426,7 +426,7 @@ function onStateChanged(sg, state)
 			lightButton(nil, true)
 
 			local originPartOfAddr = false
-			for i=1, #dialed - 1 do
+			for i=1, #dialed do
 				if (dialed[i] == sg.Origin.Value) then originPartOfAddr = true end
 			end
 
