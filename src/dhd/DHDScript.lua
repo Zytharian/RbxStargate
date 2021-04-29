@@ -1,14 +1,14 @@
 --------
 --	DHD Script
---	version 20.5(.1)
+--	version 20.5
 --------
 --  scripting by Legend26
 --  modeling by andy6a6, Flames911
+--  bugfix by hello234561
 -- (Stargates up to version 19.5 authored solely by Ganondude)
--- 	bugfix by hello234561
 --------
 --  Released: 		December 29, 2018
---  Last Updated: 	March 5, 2021
+--  Last Updated: 	January 12, 2021
 --------
 
 
@@ -423,7 +423,7 @@ function onStateChanged(sg, state)
 			lightButton(dialed[i], true)
 		end
 
-		if (state == sg.GateState.PRE_CONNECTING or state == sg.GateState.CONNECTING) and (config.activatorInputsOrigin and not config.alwaysLightOrigin) then
+		if (state == sg.GateState.PRE_CONNECTING or state == sg.GateState.CONNECTING) then
 			lightButton(nil, true)
 
 			local originPartOfAddr = false
@@ -431,7 +431,7 @@ function onStateChanged(sg, state)
 				if (dialed[i] == sg.Origin.Value) then originPartOfAddr = true end
 			end
 
-			if (not originPartOfAddr) then
+			if (not originPartOfAddr) and (config.activatorInputsOrigin) then
 				lightButton(sg.Origin.Value, false)
 			end
 		end

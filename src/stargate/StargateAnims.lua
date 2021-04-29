@@ -330,6 +330,24 @@ end
 
 function module:animDeactivation()
 
+	-- For pegasus dialing animation
+	for _,v in pairs(fakeSymbols) do
+		v:Destroy()
+	end
+	fakeSymbols = {}
+
+	for i = 1, config.numSymbols do
+		local symbol = config:getSymbol(i)
+		if (symbol) then
+			symbol.Color = self:toColor(config.symbolColour[false])
+			symbol.Material = config.symbolMat[false]
+			symbol.Transparency = 0
+
+			local decal = symbol:FindFirstChild("Decal")
+			if (decal) then decal.Transparency = 0 end
+		end
+	end
+
 	if (horizon) then
 		local front = horizon:FindFirstChild("eh_front")
 		local back = horizon:FindFirstChild("eh_back")
@@ -355,24 +373,6 @@ function module:animDeactivation()
 		wait(0.1) -- Pause a small amount before darkening chevrons
 	end
 
-		-- For pegasus dialing animation
-	for _,v in pairs(fakeSymbols) do
-		v:Destroy()
-	end
-	fakeSymbols = {}
-
-	for i = 1, config.numSymbols do
-		local symbol = config:getSymbol(i)
-		if (symbol) then
-			symbol.Color = self:toColor(config.symbolColour[false])
-			symbol.Material = config.symbolMat[false]
-			symbol.Transparency = 0
-
-			local decal = symbol:FindFirstChild("Decal")
-			if (decal) then decal.Transparency = 0 end
-		end
-	end
-	
 	for i=1, config.numChevrons do
 		self:lightChevron(false, i)
 	end

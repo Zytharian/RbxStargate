@@ -12,8 +12,6 @@ local config = {
 --------
 activatorInputsOrigin = true;	-- If true, pressing the activator dials the gate origin and activates the gate
 
-alwaysLightOrigin = true;       -- If true, pressing the activator will light up the current Origin symbol. (If activatorInputsOrigin = false then it doesn't matter.)
-
 maxDistance = 100;				-- The maximum distance allowed between the DHD and its connected Stargate. (If 0 then no limit.)
 
 maxClickDistance = 10;			-- The maximum distance at which a player can activate the buttons on the DHD.
