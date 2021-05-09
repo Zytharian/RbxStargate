@@ -4,6 +4,7 @@
 --------
 --  scripting by Legend26
 --  modeling by andy6a6, Flames911
+--  bugfix by hello234561
 -- (Stargates up to version 19.5 authored solely by Ganondude)
 --------
 --  Released: 		December 29, 2018
@@ -430,7 +431,7 @@ function onStateChanged(sg, state)
 				if (dialed[i] == sg.Origin.Value) then originPartOfAddr = true end
 			end
 
-			if (not originPartOfAddr) then
+			if (not originPartOfAddr) and (config.activatorInputsOrigin) then
 				lightButton(sg.Origin.Value, false)
 			end
 		end
