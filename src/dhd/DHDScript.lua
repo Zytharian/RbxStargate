@@ -1,6 +1,6 @@
 --------
 --	DHD Script
---	version 20.5
+--	version 20.6
 --------
 --  scripting by Legend26
 --  modeling by andy6a6, Flames911
@@ -8,7 +8,7 @@
 -- (Stargates up to version 19.5 authored solely by Ganondude)
 --------
 --  Released: 		December 29, 2018
---  Last Updated: 	January 12, 2021
+--  Last Updated: 	May 18, 2021
 --------
 
 
@@ -42,7 +42,7 @@ local this = {
 	DialMode = nil,
 
 	VERSION_MAJOR = 20,
-	VERSION_MINOR = 5,
+	VERSION_MINOR = 6,
 }
 
 --------
@@ -58,6 +58,7 @@ DHD Functions
 	updateGuide()
 	doGui(Player player)
 	canDial()
+	dial(Stargate stargate, number symbol)
 	onMouseClick(Player player, BasePart button)
 	onStateChanged(Stargate sg, sg.GateState state)
 	playSound(Int id, BasePart parent, bool isActivator)
@@ -210,11 +211,16 @@ function updateGuide()
 		end
 	end
 
-	if (not nextSym) or (clicked[nextSym] and (not config.activatorInputsOrigin or nextSym ~= stargate.Origin.Value)) then
+	-- We can't click symbols twice unless the activator does it for us.
+	if (nextSym and clicked[nextSym] and (not config.activatorInputsOrigin or nextSym ~= stargate.Origin.Value)) then
 		guidingAddress = nil
 		return
-	elseif ((config.activatorInputsOrigin) and (#current == #guidingAddress - 1) and (nextSym == stargate.Origin.Value))
-		or (#current == #guidingAddress)
+	end
+
+	if
+		((config.activatorInputsOrigin) and (#current == #guidingAddress - 1) and (nextSym == stargate.Origin.Value)) or
+		(#current == #guidingAddress) or
+		(not nextSym)
 	then
 		pulse(nil)
 		guidingAddress = nil
@@ -339,6 +345,13 @@ function canDial()
 	)
 end
 
+function dial(stargate, symbol)
+	local originalDialMode = stargate.DialMode.Value
+	stargate.DialMode.Value = this.DialMode.Value
+	stargate:Dial(symbol)
+	stargate.DialMode.Value = originalDialMode
+end
+
 function onMouseClick(player,button)
 	local stargate = this.ConnectedTo
 
@@ -368,9 +381,7 @@ function onMouseClick(player,button)
 			local randSound = math.random(#config.dialPressed)
 			playSound(config.dialPressed[randSound], button, false)
 
-			stargate.DialMode.Value = this.DialMode.Value
-			stargate:Dial(symbol)
-
+			dial(stargate, symbol)
 			updateGuide()
 		end
 		isDialing = false
@@ -386,8 +397,7 @@ function onMouseClick(player,button)
 		-- Ensure we can still dial the gate after the wait()
 		if (canDial()) then
 			if (config.activatorInputsOrigin) and (#stargate:GetDialedSymbols() < stargate.MaxDialLength.Value) then
-				stargate.DialMode.Value = this.DialMode.Value
-				stargate:Dial(symbol)
+				dial(stargate, symbol)
 				updateGuide()
 			end
 
@@ -423,17 +433,17 @@ function onStateChanged(sg, state)
 			lightButton(dialed[i], true)
 		end
 
+		local originPartOfAddr = false
+		for i=1, #dialed - 1 do
+			if (dialed[i] == sg.Origin.Value) then originPartOfAddr = true end
+		end
+
+		if (not originPartOfAddr) and (config.activatorInputsOrigin) then
+			lightButton(sg.Origin.Value, false)
+		end
+
 		if (state == sg.GateState.PRE_CONNECTING or state == sg.GateState.CONNECTING) then
 			lightButton(nil, true)
-
-			local originPartOfAddr = false
-			for i=1, #dialed - 1 do
-				if (dialed[i] == sg.Origin.Value) then originPartOfAddr = true end
-			end
-
-			if (not originPartOfAddr) and (config.activatorInputsOrigin) then
-				lightButton(sg.Origin.Value, false)
-			end
 		end
 	end
 end
