@@ -445,7 +445,7 @@ function module:animDialMilkyWay(symbol, chevron, mode)
 
 	elseif (mode == 3) then
 		local c = this:GetCenter()
-		local rotParts = config:getRotatingParts()
+		local cframeMap = priv.getRotatingPartInfo()
 
 		local symbolPart = config:getSymbol(symbol)
 		if (not symbolPart) then
@@ -464,14 +464,22 @@ function module:animDialMilkyWay(symbol, chevron, mode)
 
 		repeat
 			-- Move us one symbol forward or backward
-			-- rotation angle is 2pi over multiple of number of symbols (ex. 39*3 = 117)
-			local a = 2*math.pi/(config.ringRotationSpeed*config.numSymbols)
+			local symbolStep = (2*math.pi)/config.numSymbols
+			local rotationStep = symbolStep/config.ringRotationSpeed
+
+			-- How far we are from the original top symbol
+			-- This assumes that the original top symbol matches with the rotation part original CFrames
+			local symbolDist = module:symbolDistance(priv.getTopSymbol(true), priv.getTopSymbol(), config.numSymbols)
+
 			for i = 1, config.ringRotationSpeed do
-				for i = 1,#rotParts do
-					rotParts[i].CFrame = (c*CFrame.Angles(0,0,a*priv.dialDir)):toWorldSpace(c:toObjectSpace(rotParts[i].CFrame))
+				-- Angle to rotate each part relative to the gate and its original CFrame
+				local zAdjust = rotationStep*i*priv.dialDir + (-1*symbolDist*symbolStep)
+
+				for rotPart,rotPartCFrame in pairs(cframeMap) do
+					rotPart.CFrame = (c*CFrame.Angles(0,0,zAdjust)):toWorldSpace(c:toObjectSpace(rotPartCFrame))
 				end
 
-				count = count + a
+				count = count + rotationStep
 
 				wait()
 			end
@@ -748,6 +756,7 @@ end
 Utility Functions
 
 	self:toColor(string or Color3 c)
+	self:symbolDistance(int anchor, int target, int numSymbols)
 ]]--
 
 function module:toColor(c)
@@ -756,6 +765,10 @@ function module:toColor(c)
 	else
 		return c
 	end
+end
+
+function module:symbolDistance(anchor, target, numSymbols)
+	return (numSymbols - anchor + target) % numSymbols
 end
 
 --------

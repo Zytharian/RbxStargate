@@ -1,6 +1,6 @@
 --------
 --  Stargate Script
---  version 20.5
+--  version 20.6
 --------
 --  scripting by Legend26
 --  modeling by andy6a6, Flames911
@@ -8,7 +8,7 @@
 -- (Stargates up to version 19.5 authored solely by Ganondude)
 --------
 --  Released: 		December 29, 2018
---  Last Updated: 	January 12, 2021
+--  Last Updated: 	September 15, 2021
 --------
 --  This script drives the stargate's operations.
 --------
@@ -147,9 +147,11 @@ local activeTimer = 0
 local cache = {
 	center = nil,
 	radius = nil,
+	originalTopSymbol = nil,
 	topSymbol = nil,
 	dialable = nil,
 	mainPartCFrame = nil,
+	rotatePartCFrameMap = nil,
 }
 
 local GateState = {
@@ -194,7 +196,7 @@ this = {
 	LongDistance = nil,
 
 	VERSION_MAJOR = 20,
-	VERSION_MINOR = 5,
+	VERSION_MINOR = 6,
 
 	GateState = nil,
 
@@ -293,7 +295,8 @@ end
 Get Functions
 	getCenter()
 	getRadius()
-	getTopSymbol()
+	getRotatingPartInfo()
+	getTopSymbol(Bool original)
 
 	Note: these methods store their results in the cache.
 ]]--
@@ -343,8 +346,22 @@ function getRadius()
 	return radius
 end
 
-function getTopSymbol()
-	if cache.topSymbol then return cache.topSymbol end
+function getRotatingPartInfo()
+	if (cache.rotatePartCFrameMap) and (cache.mainPartCFrame == this.MainPart.CFrame) then return cache.rotatePartCFrameMap end
+
+	local map = {}
+
+	for _,v in pairs(config:getRotatingParts()) do
+		map[v] = v.CFrame
+	end
+
+	cache.rotatePartCFrameMap = map
+	return map
+end
+
+function getTopSymbol(original)
+	if not original and cache.topSymbol then return cache.topSymbol end
+	if original and cache.originalTopSymbol then return cache.originalTopSymbol end
 
 	local topChev = config:getChevronLight(config.topChevron)
 
@@ -364,6 +381,7 @@ function getTopSymbol()
 	end
 
 	cache.topSymbol = num
+	cache.originalTopSymbol = num
 	return num
 end
 
@@ -1375,6 +1393,7 @@ if (model) and (model:IsA("Model")) then
 
 	animShared.getTopSymbol = getTopSymbol
 	animShared.setTopSymbol = setTopSymbol
+	animShared.getRotatingPartInfo = getRotatingPartInfo
 	anim:initialize(this, config, animShared)
 
 	--
