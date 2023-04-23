@@ -135,30 +135,37 @@ function pulse(symbol)
 
 	local parts = {}
 	if (not symbol) then
-		table.insert(parts, {this.Model.Activator})
+		table.insert(parts, {part = this.Model.Activator, material = config.activatorMaterial.hintOverride})
 	else
 		local symbolPart = config.symbols:FindFirstChild(symbol)
 		local edgePart   = config.edges:FindFirstChild(symbol)
 
 		if (symbolPart) then
-			table.insert(parts, {symbolPart})
+			table.insert(parts, {part = symbolPart, material = config.symMaterial.hintOverride})
 		end
 		if (edgePart) then
-			table.insert(parts, {edgePart})
+			table.insert(parts, {part = edgePart, material = config.edgeMaterial.hintOverride})
 		end
 		if (not symbolPart) and (not edgePart) then
 			local midPart = config.mid:FindFirstChild(symbol)
-			table.insert(parts, {midPart})
+			table.insert(parts, {part = midPart, material = config.midMaterial.hintOverride})
 		end
 	end
 
 	for _,v in pairs(parts) do
-		v[2] = v[1].Color
+		v.originalColor = v.part.Color
 	end
 
 	coroutine.wrap(function()
 		local guideColor = config.activatorColour[true]
 		local towardsGuide = true
+
+		for i,btn in pairs(parts) do
+			-- Material is restored later by lightSymbol(x, false)
+			if (btn.material) then
+				btn.part.Material = btn.material
+			end
+		end
 
 		while go do
 			local max = 33
@@ -166,8 +173,8 @@ function pulse(symbol)
 			for i=0, max do
 				if (not go) then break end
 				for _,btn in pairs(parts) do
-					btn[1].Color = btn[2]:Lerp(guideColor, towardsGuide and i/max or (max-i)/max)
-					local decal = btn[1]:FindFirstChild(config.activatorDecalName)
+					btn.part.Color = btn.originalColor:Lerp(guideColor, towardsGuide and i/max or 1-(i/max))
+					local decal = btn.part:FindFirstChild(config.activatorDecalName)
 					if (decal) then
 						decal.Transparency = towardsGuide and i/max	or 1-(i/max)
 						decal.Transparency = math.min(decal.Transparency, config.activatorDecalTrans[true])

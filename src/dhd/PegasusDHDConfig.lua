@@ -42,18 +42,19 @@ edges   = model.Edges;
 --------
 
 -- true when button has been clicked, false otherwise
+-- hintOverride is used during the DHD dial hint; use Neon if hint must be visible in darkness
 activatorColour =		{[true] = Color3.fromRGB(0,152,166), 	[false] = Color3.fromRGB(46,67,70)};
-activatorMaterial =		{[true] = Enum.Material.Neon,			[false] = Enum.Material.Glass};
+activatorMaterial =		{[true] = Enum.Material.Neon,			[false] = Enum.Material.Glass,			hintOverride = nil};
 activatorDecalTrans =	{[true] = 0,							[false] = 0};
 
 midTransparency =		{[true] = 0.7,							[false] = 0.3};
-midMaterial =			{[true] = Enum.Material.Neon,			[false] = Enum.Material.Granite};
+midMaterial =			{[true] = Enum.Material.Neon,			[false] = Enum.Material.Granite,		hintOverride = nil};
 
 symColor =				{[true] = Color3.fromRGB(152,149,168),	[false] = Color3.fromRGB(152,149,168)};
-symMaterial =			{[true] = Enum.Material.Neon,			[false] = Enum.Material.SmoothPlastic};
+symMaterial =			{[true] = Enum.Material.Neon,			[false] = Enum.Material.SmoothPlastic,	hintOverride = nil};
 
 edgeColor =				{[true] = Color3.fromRGB(163,162,165),	[false] = Color3.fromRGB(163,162,165)};
-edgeMaterial =			{[true] = Enum.Material.Neon,			[false] = Enum.Material.Glass};
+edgeMaterial =			{[true] = Enum.Material.Neon,			[false] = Enum.Material.Glass,			hintOverride = Enum.Material.SmoothPlastic};
 
 --------
 -- Sound settings
