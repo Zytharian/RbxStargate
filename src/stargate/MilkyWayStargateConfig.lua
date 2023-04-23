@@ -104,7 +104,7 @@ dialFail = 162025481;
 
 chevronLock = 162030699;
 incomingLock = 162028418;
-ringRoll = 162030749;
+ringRoll = 9096592435;
 
 soundMaxDistance = 200;
 soundEmitterSize = 10;

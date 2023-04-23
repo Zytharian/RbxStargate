@@ -1,6 +1,6 @@
 --------
 --  Stargate Script
---  version 20.6
+--  version 20.7
 --------
 --  scripting by Legend26
 --  modeling by andy6a6, Flames911
@@ -8,7 +8,7 @@
 -- (Stargates up to version 19.5 authored solely by Ganondude)
 --------
 --  Released: 		December 29, 2018
---  Last Updated: 	September 15, 2021
+--  Last Updated: 	April 22, 2023
 --------
 --  This script drives the stargate's operations.
 --------
@@ -31,6 +31,7 @@ N	_G.Stargates
 			- AddSounds(array of Int)
 			- AddDecals(array of Int)
 			- AddVersion(string,number,number)
+		- FindStargate(model or string)	-- returns: Stargate or nil		-- given a Stargate's name or model, returns the gate's _G.Stargates.All object
 
 B	_G.all_Stargates						-- Same as _G.Stargates.All
 
@@ -67,8 +68,9 @@ N	VERSION_MAJOR			-- type:number					-- Stargate major version
 N	VERSION_MINOR			-- type:number					-- Stargate minor version
 
 N	GateState				-- type: Enum					-- all possible FSM states
-		-- Enum values: IDLE, INCOMING, DIALING, CONNECTING, CONNECTION_FAILED, ACTIVATING_OUTGOING
-		--              ACTIVATING_INCOMING, ACTIVE_INCOMING, ACTIVE_OUTGOING, DEACTIVATING, DISABLED
+		-- Enum values: IDLE, INCOMING, DIALING, PRE_CONNECTING, CONNECTING, CONNECTION_FAILED,
+		--              ACTIVATING_OUTGOING, ACTIVATING_INCOMING, ACTIVE_INCOMING, ACTIVE_OUTGOING,
+		--              DEACTIVATING, DISABLED
 
 --------
 Methods are called with a colon operator (:)
@@ -102,6 +104,8 @@ N	SetDisabled(bool,bool)	-- returns: nil					-- call only when gate is in IDLE o
 
 N	InvalidateCache()		-- returns: nil					-- deletes any data currently cached internally (use when gate is moved or when the available addresses change)
 
+N	GetStateName(number)	-- returns: string or ""		-- gets the name of a gate state, for debugging
+
 --------
 Events work slightly differently from Roblox events.
 	Ex.
@@ -110,7 +114,8 @@ Events work slightly differently from Roblox events.
 --------
 public events
 
-N	OnStateChanged(h)		-- args: Stargate,NewState		-- fired when the Stargate's FSM state is changed
+N	OnStateChanged(h)		-- args: Stargate,NewState				-- fired when the Stargate's FSM state is changed
+N   OnChevronLocked(h)		-- args: Stargate,ChevronNumber,Symbol	-- fired when a symbol is locked
 
 ]]--
 
@@ -161,6 +166,7 @@ local GateState = {
 }
 
 local stateHandlers = {}
+local chevronLockedHandlers = {}
 
 -- Used by long-running Stargate API functions to prevent halting in the middle of something
 -- when the calling script is destroyed. Especially a problem with tools when the player dies.
@@ -196,7 +202,7 @@ this = {
 	LongDistance = nil,
 
 	VERSION_MAJOR = 20,
-	VERSION_MINOR = 6,
+	VERSION_MINOR = 7,
 
 	GateState = nil,
 
@@ -225,8 +231,15 @@ this = {
 
 	InvalidateCache = function() for k,v in pairs(cache) do cache[k] = nil end end,
 
+	GetStateName = function(_, stateToName)
+		for name,state in pairs(GateState) do
+			if state == stateToName then return name end
+		end
+	end,
+
 	-- Events
 	OnStateChanged = function(_, h) return onStateChanged(h) end,
+	OnChevronLocked = function(_, h) return onChevronLocked(h) end,
 }
 
 --------
@@ -243,6 +256,7 @@ Status Functions
 
 	atLeastVer20(Stargate sg)
 	onStateChanged(Function handler)
+	onChevronLocked(Function handler)
 ]]--
 
 function isActive()
@@ -278,15 +292,11 @@ function atLeastVer20(sg)
 end
 
 function onStateChanged(handler)
-	if (type(handler) ~= "function") then
-		error("Handler must be a function")
-	end
+	return connectHandler(stateHandlers, handler)
+end
 
-	stateHandlers[handler] = true
-
-	return function()
-		stateHandlers[handler] = nil
-	end
+function onChevronLocked(handler)
+	return connectHandler(chevronLockedHandlers, handler)
 end
 
 --------
@@ -403,20 +413,7 @@ end
 function setState(state)
 	if (type(state) ~= "number") then error("State must be a number") end
 	this.State = state
-
-	local failed = {}
-	for k,_ in pairs(stateHandlers) do
-		local isOk, err = pcall(k, exported, state)
-		if (not isOk) then
-			warn("Stargate OnStateChanged handler error: " .. err)
-			warn("Stargate: Disconnecting handler due to previous error")
-			table.insert(failed, k)
-		end
-	end
-	for _,v in pairs(failed) do
-		stateHandlers[v] = nil
-	end
-
+	fireHandlers(stateHandlers, "OnStateChanged", {exported, state})
 end
 
 function setDisabled(locked, tryDeactivate)
@@ -491,7 +488,9 @@ function dial(param)
 		coroutine.wrap(function()
 			while (keepDialing()) do
 				currentInput = currentInput + 1
-				anim:animDial(dialQueue[1], currentInput, mode)
+				local currentSymbol = dialQueue[1]
+				anim:animDial(currentSymbol, currentInput, mode)
+				fireHandlers(chevronLockedHandlers, "OnChevronLocked", {exported, currentInput, currentSymbol})
 				table.remove(dialQueue,1)
 			end
 			isDialAnimPlaying = false
@@ -501,7 +500,7 @@ end
 
 function incoming(sg)
 	if (this.State ~= GateState.IDLE) and (this.State ~= GateState.DIALING) and (this.State ~= GateState.PRE_CONNECTING) then
-		error("Cannot recieve incoming wormhole")
+		error("Cannot receive incoming wormhole")
 	end
 
 	setState(GateState.INCOMING)
@@ -731,7 +730,7 @@ function activeOutgoing()
 	shimDebounce = false
 
 	-- Shut down this gate
-	-- Note: Deactive() could have been called sooner, so check state here.
+	-- Note: Deactivate() could have been called sooner, so check state here.
 	if (this.State == GateState.ACTIVE_OUTGOING) then
 		deactivate()
 	end
@@ -1003,6 +1002,8 @@ Utility Functions
 	stringToArray(String s)
 	makeReadOnly(Table t)
 	copyDialableTable(Table t)
+	connectHandler(Table allHandlers, Function handler)
+	fireHandlers(Table allHandlers, string name, Table args)
 ]]--
 
 function arrayEqual(a, b)
@@ -1061,6 +1062,33 @@ function copyDialableTable(t)
 	return copy
 end
 
+function connectHandler(allHandlers, newHandler)
+	if (type(newHandler) ~= "function") then
+		error("Handler must be a function")
+	end
+
+	allHandlers[newHandler] = true
+
+	return function()
+		allHandlers[newHandler] = nil
+	end
+end
+
+function fireHandlers(allHandlers, name, args)
+	local failed = {}
+	for k,_ in pairs(allHandlers) do
+		local isOk, err = pcall(k, table.unpack(args))
+		if (not isOk) then
+			warn("Stargate " .. name .. " handler error: " .. err)
+			warn("Stargate: Disconnecting handler due to previous error")
+			table.insert(failed, k)
+		end
+	end
+	for _,v in pairs(failed) do
+		allHandlers[v] = nil
+	end
+end
+
 --------
 
 --[[
@@ -1069,6 +1097,7 @@ Search Functions
 	findByProximity(Vector3 pos, number range)
 	findDialable()
 	findAllPossibleDialable()
+	findStargate(model or string)
 ]]--
 
 function findByProximity(pos,range)
@@ -1119,7 +1148,7 @@ end
 function findAllPossibleDialable()
 	if (cache.dialable) then return copyDialableTable(cache.dialable) end
 
-	local dialable = {}
+	local availableAddrs = {}
 
 	for _,sg in pairs(ALL) do
 		if (sg.Model ~= this.Model) then
@@ -1127,12 +1156,12 @@ function findAllPossibleDialable()
 			local address = stringToArray(sg.Address.Value)
 
 			-- Forgive blank network values for backwards compatibility
-			local network = sg.Network.Value == "" and this.Network.Value or tonumber(sg.Network.Value)
+			local targetNetwork = sg.Network.Value == "" and this.Network.Value or tonumber(sg.Network.Value)
 
-			if (address and network) then
+			if (address and targetNetwork) then
 				local dialAddress
 
-				if (network == this.Network.Value) then -- 7 symbol
+				if (targetNetwork == this.Network.Value) then -- 7 symbol
 					dialAddress = address
 					table.insert(dialAddress, this.Origin.Value)
 				elseif (sg.NetworkAccessPoint.Value) then -- 9 or 8 symbol
@@ -1142,30 +1171,29 @@ function findAllPossibleDialable()
 						dialAddress = code
 					else
 						dialAddress = address
-						table.insert(dialAddress, this.Network.Value)
+						table.insert(dialAddress, targetNetwork)
 						table.insert(dialAddress, this.Origin.Value)
 					end
 				end
 
 				local dist = (sg:GetCenter().p - getCenter().p).magnitude
 				if (dialAddress) and (dist <= config.maxDistance) then
-					table.insert(dialable, {Stargate=sg, DialAddress=dialAddress, PlaceId=0, Name=tostring(sg)})
+					table.insert(availableAddrs, {Stargate=sg, DialAddress=dialAddress, PlaceId=0, Name=tostring(sg)})
 				end
 			end
 		end
 	end
 
-	table.sort(dialable,(function (a,b)
+	table.sort(availableAddrs,(function (a,b)
 		return a.Stargate.Priority.Value < b.Stargate.Priority.Value
 	end))
 
 	-- Remove duplicates, respecting priority
-	local temp = dialable
-	local dialable = {}
-	for _,entry in pairs(temp) do
+	local dialableAddrs = {}
+	for _,entry in pairs(availableAddrs) do
 		local skip = false
 
-		for _,toCheck in pairs(temp) do
+		for _,toCheck in pairs(availableAddrs) do
 			if (entry ~= toCheck) and (arrayEqual(entry.DialAddress, toCheck.DialAddress))
 				and (entry.Stargate.Priority.Value >= toCheck.Stargate.Priority.Value)
 			then
@@ -1175,7 +1203,7 @@ function findAllPossibleDialable()
 		end
 
 		if (not skip) then
-			table.insert(dialable, entry)
+			table.insert(dialableAddrs, entry)
 		end
 	end
 
@@ -1187,7 +1215,7 @@ function findAllPossibleDialable()
 		if (addr) then
 			table.insert(addr, this.Origin.Value)
 
-			for _,o in pairs(dialable) do
+			for _,o in pairs(dialableAddrs) do
 				if (arrayEqual(o.DialAddress, addr)) then
 					skip = true
 					break
@@ -1195,31 +1223,51 @@ function findAllPossibleDialable()
 			end
 
 			if (not skip) then
-				table.insert(dialable, {Stargate=nil, DialAddress=addr, PlaceId=v[2], Name=v[3]})
+				table.insert(dialableAddrs, {Stargate=nil, DialAddress=addr, PlaceId=v[2], Name=v[3]})
 			end
 		end
 	end
 
 	-- Remove violations of config.minLength, config.maxLength, or have symbols < 1 or > config.numSymbols
 	local iOffset = 0
-	for i=1, #dialable do
-		local entry = dialable[i - iOffset]
+	for i=1, #dialableAddrs do
+		local entry = dialableAddrs[i - iOffset]
 
 		if (#entry.DialAddress < config.minLength or #entry.DialAddress > config.maxLength) then
-			table.remove(dialable, i)
+			table.remove(dialableAddrs, i)
 			iOffset = iOffset + 1
 		end
 
 		for _,v in pairs(entry.DialAddress) do
 			if (v < 1 or v > config.numSymbols) then
-				table.remove(dialable, i)
+				table.remove(dialableAddrs, i)
 				iOffset = iOffset + 1
 			end
 		end
 	end
 
-	cache.dialable = dialable
-	return copyDialableTable(dialable)
+	cache.dialable = dialableAddrs
+	return copyDialableTable(dialableAddrs)
+end
+
+function findStargate(modelOrName)
+	if not modelOrName then
+		return nil
+	elseif (type(modelOrName) == "string") then
+		local name = modelOrName
+		for _,gate in pairs(ALL) do
+			if (tostring(gate) == name) then
+				return gate
+			end
+		end
+	else
+		local model = modelOrName
+		for _,gate in pairs(ALL) do
+			if (gate.Model == model) then
+				return gate
+			end
+		end
+	end
 end
 
 --------
@@ -1234,6 +1282,7 @@ if (_G.Stargates == nil) then
 	_G.Stargates = {
 		All = ALL;
 		Assets = nil;
+		FindStargate = nil;
 	}
 end
 API = _G.Stargates
@@ -1316,6 +1365,11 @@ if (API.Assets.AddVersion) then
 end
 --------
 
+if (not API.FindStargate) then
+	API.FindStargate = function(_,arg) return findStargate(arg) end
+end
+--------
+
 local model = script.Parent
 if (model) and (model:IsA("Model")) then
 	this.Model = model
@@ -1347,7 +1401,7 @@ if (model) and (model:IsA("Model")) then
 			local symbol
 			repeat
 				symbol = math.random(1, 36)
-			until (not this.Address.Value:find(tostring(symbol), 1, false))
+			until (not this.Address.Value:find(tostring(symbol), 1, false)) and (tostring(symbol) ~= this.Network.Value)
 			this.Address.Value = this.Address.Value .. tostring(symbol)
 			if (i ~= 6) then
 				this.Address.Value = this.Address.Value .. ","

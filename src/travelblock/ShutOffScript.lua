@@ -5,7 +5,7 @@
 --  scripting by Legend26
 --------
 --  Released: 		December 29, 2018
---  Last Updated: 	December 29, 2018
+--  Last Updated: 	December 23, 2022
 --------
 
 local range = 50
@@ -46,7 +46,7 @@ repeat
 	gate = ALL[1]:FindByProximity(button.Position, range)
 until (gate)
 
-if (not gate.VERSION_MAJOR) and (not gate.VERSION_MAJOR >= 20) then
+if (not gate.VERSION_MAJOR) or (gate.VERSION_MAJOR < 20) then
 	error("This shutdown button does not work for Stargates under version 20.")
 end
 

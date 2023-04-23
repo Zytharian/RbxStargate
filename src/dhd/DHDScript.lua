@@ -1,6 +1,6 @@
 --------
 --	DHD Script
---	version 20.6
+--	version 20.7
 --------
 --  scripting by Legend26
 --  modeling by andy6a6, Flames911
@@ -8,7 +8,7 @@
 -- (Stargates up to version 19.5 authored solely by Ganondude)
 --------
 --  Released: 		December 29, 2018
---  Last Updated: 	May 18, 2021
+--  Last Updated: 	April 22, 2023
 --------
 
 
@@ -42,7 +42,7 @@ local this = {
 	DialMode = nil,
 
 	VERSION_MAJOR = 20,
-	VERSION_MINOR = 6,
+	VERSION_MINOR = 7,
 }
 
 --------
